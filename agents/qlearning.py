@@ -61,10 +61,23 @@ class QLearningAgent():
         # User the "adam" optimizer and the "mean squared error" loss function
         self.model.compile('adam', loss = 'mse')
         # If there are already stored weights for the model, load them
-        if isfile(self.filename):
-            print("[+] Loaded weights from file:", self.filename)
-            self.model.load_weights(self.filename)
+        self.__load_model()
     
+    # Load weights from a file
+    def __load_model(self): 
+        os.makedirs(os.path.dirname(self.filename), exist_ok=True)
+        if isfile(self.filename):
+            self.model.load_weights(self.filename)
+            print("[+] Loaded weights from file:", self.filename)
+    
+    # Store weights to a file
+    def __save_model(self): 
+        os.makedirs(os.path.dirname(self.filename), exist_ok=True)
+        if isfile(self.filename):
+            os.remove(self.filename)
+        self.model.save_weights(self.filename)
+        print("[+] Saved weights to file:", self.filename)
+        
     # Trains the agent's model on a given number of games
     # This should probably be broken into more functions if possible
     def train(self, number_of_games):
@@ -114,10 +127,8 @@ class QLearningAgent():
                 .format(number_game, reward_game, self.epsilon, index_train_per_game, loss / index_train_per_game * self.jump_fps))
             if self.epsilon >= 0.1:
                 self.epsilon -= (1 / (number_of_games))
-            if isfile(self.filename):
-                os.remove(self.filename)
-            self.model.save_weights(self.filename)
-
+        self.__save_model()
+            
     # Has the agent play the game (as currently trained)
     def play(self, repetitions):
         for index_game in range(repetitions):
