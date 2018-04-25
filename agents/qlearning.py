@@ -21,7 +21,7 @@ class QLearningAgent():
     __name = "QLearningAgent"
     
     # Initlizes the agent on the named enviroment with given learning parameters
-    def __init__(self, env_name, epsilon, future_discount):
+    def __init__(self, env_name, epsilon, future_discount, max_replay_states, jump_fps, bach_size):
         # Create an instance of the enviroment
         self.env = gym.make(env_name)
         # Store the number of inputs (observations) to the enviroment
@@ -34,6 +34,12 @@ class QLearningAgent():
         self.epsilon = epsilon
         # Future discount (gamma) learning parameter
         self.future_discount = future_discount
+        # Number of previous states to remember in replay
+        self.max_replay_states = max_replay_states
+        # Number of frames to skip training on
+        self.jump_fps = jump_fps
+        # The size of training batches
+        self.bach_size = bach_size
         # Initilize the keras model
         self.__create_model()
 
@@ -63,9 +69,6 @@ class QLearningAgent():
     # This should probably be broken into more functions if possible
     def train(self, number_of_games):
         replay = []
-        MAX_REPLAY_STATES = 100
-        JUMP_FPS = 2
-        BATCH_SIZE= 20
         for number_game in range(number_of_games):
             new_state = self.env.reset()
             reward_game = 0
@@ -85,11 +88,11 @@ class QLearningAgent():
                 new_state, reward, done, info = self.env.step(action)
                 reward_game += reward
                 replay.append([new_state, reward, action, done, old_state])
-                if len(replay) > MAX_REPLAY_STATES: 
-                    replay.pop(np.random.randint(MAX_REPLAY_STATES) + 1)
-                if JUMP_FPS != 1 and index_train_per_game % JUMP_FPS == 0:
+                if len(replay) > self.max_replay_states: 
+                    replay.pop(np.random.randint(self.max_replay_states) + 1)
+                if self.jump_fps != 1 and index_train_per_game % self.jump_fps == 0:
                     continue # We skip this train, but already add data
-                len_mini_batch = min(len(replay), BATCH_SIZE)
+                len_mini_batch = min(len(replay), self.bach_size)
                 mini_batch = random.sample(replay, len_mini_batch)
                 X_train = np.zeros((len_mini_batch, self.number_of_states))
                 Y_train = np.zeros((len_mini_batch, self.number_of_actions))
@@ -108,7 +111,7 @@ class QLearningAgent():
                 if reward_game > 200:
                     break
             print( "[+] End Game {} | Reward {} | self.epsilon {:.4f} | TrainPerGame {} | Loss {:.4f} "
-                .format(number_game, reward_game, self.epsilon, index_train_per_game, loss / index_train_per_game * JUMP_FPS))
+                .format(number_game, reward_game, self.epsilon, index_train_per_game, loss / index_train_per_game * self.jump_fps))
             if self.epsilon >= 0.1:
                 self.epsilon -= (1 / (number_of_games))
             if isfile(self.filename):
@@ -118,7 +121,7 @@ class QLearningAgent():
     # Has the agent play the game (as currently trained)
     def play(self, repetitions):
         for index_game in range(repetitions):
-            print( '[+] {} Playing Game {} of {}'.format(QLearningAgent.__name, index_game +1, repetitions))
+            print( '[+] {} Playing Game {} of {}'.format(QLearningAgent.__name, index_game + 1, repetitions))
             observation = self.env.reset()
             while True:
                 self.env.render()
