@@ -4,6 +4,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Activation
 from keras.optimizers import sgd
 import os
+import signal
 import random
 from os.path import isfile
 from collections import deque
@@ -42,6 +43,15 @@ class QLearningAgent():
         self.bach_size = bach_size
         # Initilize the keras model
         self.__create_model()
+
+        # Capture exit signals
+        signal.signal(signal.SIGINT, self.__on_exit)
+        signal.signal(signal.SIGTERM, self.__on_exit)
+
+    # Save model when we force exit
+    def __on_exit(self, signal, frame):
+        self.__save_model()
+        exit()
 
     # Creates a keras model for the agent to use for learning/prediction
     # If there are already stored weights, those will be loaded
