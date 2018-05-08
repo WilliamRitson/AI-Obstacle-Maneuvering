@@ -1,9 +1,24 @@
-import random
-import _pickle as pickle
 import numpy as np
-from es import EvolutionStrategy
-from model import Model
 import gym
+import _pickle as pickle
+
+class Model(object):
+
+    def __init__(self):
+        self.weights = [np.zeros(shape=(24, 16)), np.zeros(shape=(16, 16)), np.zeros(shape=(16, 4))]
+
+    def predict(self, inp):
+        out = np.expand_dims(inp.flatten(), 0)
+        out = out / np.linalg.norm(out)
+        for layer in self.weights:
+            out = np.dot(out, layer)
+        return out[0]
+
+    def get_weights(self):
+        return self.weights
+
+    def set_weights(self, weights):
+        self.weights = weights
 
 
 class Agent:
@@ -17,8 +32,8 @@ class Agent:
     FINAL_EXPLORATION = 0.0
     EXPLORATION_DEC_STEPS = 1000000
 
-    def __init__(self):
-        self.env = gym.make('BipedalWalker-v2')
+    def __init__(self, env_name):
+        self.env = gym.make(env_name)
         self.model = Model()
         self.es = EvolutionStrategy(self.model.get_weights(), self.get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE)
         self.exploration = self.INITIAL_EXPLORATION
@@ -89,3 +104,53 @@ class Agent:
                 sequence.append(observation)
 
         return total_reward/self.EPS_AVG
+
+
+class EvolutionStrategy(object):
+
+    def __init__(self, weights, get_reward_func, population_size=50, sigma=0.1, learning_rate=0.001, decay=1.0):
+        np.random.seed(0)
+        self.weights = weights
+        self.get_reward = get_reward_func
+        self.POPULATION_SIZE = population_size
+        self.SIGMA = sigma
+        self.DECAY = decay
+        self.learning_rate = learning_rate
+
+    def _get_weights_try(self, w, p):
+        weights_try = []
+        for index, i in enumerate(p):
+            jittered = self.SIGMA*i
+            weights_try.append(w[index] + jittered)
+        return weights_try
+
+
+    def get_weights(self):
+        return self.weights
+
+
+    def run(self, iterations, print_step=10):
+        for iteration in range(iterations):
+
+            population = []
+            rewards = np.zeros(self.POPULATION_SIZE)
+            for i in range(self.POPULATION_SIZE):
+                x = []
+                for w in self.weights:                 
+                    x.append(np.random.randn(*w.shape))
+                population.append(x)
+
+            for i in range(self.POPULATION_SIZE):
+                weights_try = self._get_weights_try(self.weights, population[i])
+                rewards[i] = self.get_reward(weights_try)
+
+            rewards = (rewards - np.mean(rewards)) / np.std(rewards)
+
+            for index, w in enumerate(self.weights):
+                A = np.array([p[index] for p in population])
+                self.weights[index] = w + self.learning_rate/(self.POPULATION_SIZE*self.SIGMA) * np.dot(A.T, rewards).T
+
+            self.learning_rate *= self.DECAY
+
+            if (iteration+1) % print_step == 0:
+                print('iter %d. reward: %f' % (iteration+1, self.get_reward(self.weights)))

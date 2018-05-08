@@ -1,13 +1,23 @@
-from agents.qlearning import QLearningAgent
+import atexit
+import importlib
 
-agent = QLearningAgent(
-    env_name = 'CartPole-v0',
-    epsilon = 1, 
-    future_discount = 0.99,
-    max_replay_states = 100,
-    jump_fps = 2,
-    bach_size= 20
-)
+ENV_NAME = 'BipedalWalker-v2'
 
-agent.train(500)
-agent.play(10)
+def main(agent, iterations, load=None, save=None, play=False):
+    Agent = getattr(importlib.import_module('agents.%s' % agent), 'Agent')
+
+    agent = Agent(ENV_NAME)
+    if load:
+        agent.load('weights/' + load)
+    if save:
+        atexit.register(agent.save, 'weights/' + save)
+    if play:
+        agent.play(iterations)
+    else:
+        agent.train(iterations)
+
+if __name__ == '__main__':
+    main('es', 1, load='es_1000.pkl', play=True)
+    # main('es', 10, save='es_10.pkl')
+    # main('qlearning', 10, load='qlearning_500.h5', play=True)
+    # main('qlearning', 500, save='qlearning_500.h5')

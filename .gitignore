@@ -1,2 +1,3 @@
-*/__pycache__
-weights
+**/__pycache__
+**/*.py[ced]
+.vscode/

@@ -5,10 +5,21 @@ from keras.layers import Dense, Activation
 from keras.optimizers import sgd
 import os
 import signal
-import random
 from os.path import isfile
 from collections import deque
 import time
+import random
+
+# DEPRACTED: doesn't work for bipedal walker
+
+# QLearningAgent(
+#     env_name = 'CartPole-v0',
+#     epsilon = 1, 
+#     future_discount = 0.99,
+#     max_replay_states = 100,
+#     jump_fps = 2,
+#     bach_size= 20
+# )
 
 # Returns the product of an iterable (each item multiplied by the next)
 def product(iterable):
@@ -17,7 +28,14 @@ def product(iterable):
         product_total *= x
     return product_total
 
-class QLearningAgent():
+def get_prop(obj, key):
+    for k, val in obj.__dict__.items():
+        print(k, key, k is key, key == k)
+        if k == key:
+            return val
+    raise 'Failed to get prop {} from object {}'.format(key, obj)
+
+class Agent():
     # The name of the agent, used to generate the weight filename
     __name = "QLearningAgent"
     
@@ -28,7 +46,10 @@ class QLearningAgent():
         # Store the number of inputs (observations) to the enviroment
         self.number_of_states = product(self.env.observation_space.shape)
         # Store the number of outputs (actions) from the enviroment
-        self.number_of_actions = self.env.action_space.n 
+        if isinstance(self.env.action_space, gym.spaces.Box):
+            self.number_of_actions = self.env.action_space.shape[0]
+        else:
+            self.number_of_actions = self.env.action_space.n
         # Create a filename to store the weights based on the model and the enviroment
         self.filename = "weights/{}_{}.h5".format(QLearningAgent.__name, env_name)
         # Epsilon learning parameter
@@ -43,10 +64,6 @@ class QLearningAgent():
         self.bach_size = bach_size
         # Initilize the keras model
         self.__create_model()
-
-        # Capture exit signals
-        signal.signal(signal.SIGINT, self.__on_exit)
-        signal.signal(signal.SIGTERM, self.__on_exit)
 
     # Save model when we force exit
     def __on_exit(self, signal, frame):
@@ -91,6 +108,10 @@ class QLearningAgent():
     # Trains the agent's model on a given number of games
     # This should probably be broken into more functions if possible
     def train(self, number_of_games):
+        # Capture exit signals
+        signal.signal(signal.SIGINT, self.__on_exit)
+        signal.signal(signal.SIGTERM, self.__on_exit)
+
         replay = []
         for number_game in range(number_of_games):
             new_state = self.env.reset()
@@ -99,14 +120,18 @@ class QLearningAgent():
             loss = 0
             index_train_per_game = 0
             print( '[+] Starting Game ' + str(number_game))
-            while not done:
+            while not done:                
                 self.env.render()
                 index_train_per_game += 1
-                if random.random() < self.epsilon:
-                    action = np.random.randint(self.number_of_actions)
+                
+                action = None
+                if index_train_per_game < 10 or np.random.rand(1) < self.epsilon:
+                    action = self.env.action_space.sample()
                 else:
-                    q = self.model.predict(new_state.reshape(1, self.number_of_states))[0]
-                    action = np.argmax(q)
+                    q = self.model.predict(new_state.reshape(1, self.number_of_states))
+                    print(q)
+                    action = np.argmax(q[0])
+
                 old_state = new_state
                 new_state, reward, done, info = self.env.step(action)
                 reward_game += reward
@@ -133,7 +158,7 @@ class QLearningAgent():
                 loss += self.model.train_on_batch(X_train, Y_train)
                 if reward_game > 200:
                     break
-            print( "[+] End Game {} | Reward {} | self.epsilon {:.4f} | TrainPerGame {} | Loss {:.4f} "
+            print( "[-] End Game {} | Reward {} | self.epsilon {:.4f} | TrainPerGame {} | Loss {:.4f} "
                 .format(number_game, reward_game, self.epsilon, index_train_per_game, loss / index_train_per_game * self.jump_fps))
             if self.epsilon >= 0.1:
                 self.epsilon -= (1 / (number_of_games))
@@ -142,14 +167,17 @@ class QLearningAgent():
     # Has the agent play the game (as currently trained)
     def play(self, repetitions):
         for index_game in range(repetitions):
-            print( '[+] {} Playing Game {} of {}'.format(QLearningAgent.__name, index_game + 1, repetitions))
+            print('[+] {} Playing Game {} of {}'.format(QLearningAgent.__name, index_game + 1, repetitions))
             observation = self.env.reset()
+            steps = 0
             while True:
                 self.env.render()
                 q = self.model.predict(observation.reshape(1, self.number_of_states))
                 action = np.argmax(q)
                 observation, reward, done, info = self.env.step(action)
                 time.sleep(0.05)
+                steps += 1
                 if done:
                     break
+            print('[-] Game finished with {} steps'.format(steps))
 
