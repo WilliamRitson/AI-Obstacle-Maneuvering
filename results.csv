@@ -1,0 +1,4 @@
+agent,environment,iterations,export_weights,import_weights,reward
+es-v1,BipedalWalker-v2,1000,es_1000.pkl,,240
+es-v1,BipedalWalkerHardcore-v2,1000,es_1000_hardcore.pkl,es_1000.pkl,-90
+es-v1,BipedalWalkerHardcore-v2,1000,es_1000_hardcore_scratch.pkl,,In Progress
