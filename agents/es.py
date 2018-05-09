@@ -1,7 +1,15 @@
 import numpy as np
 import gym
 import _pickle as pickle
+import random
 
+
+### Iterate the VERSION by 1 everytime you modify the below algorithm
+### VERSION 1 ###
+
+
+# Input/output shapes of Bipedal Walker weights (24 inputs, 4 outputs)
+# with 1 hidden layer of 16 nodes
 class Model(object):
 
     def __init__(self):
@@ -31,17 +39,13 @@ class Agent:
     INITIAL_EXPLORATION = 1.0
     FINAL_EXPLORATION = 0.0
     EXPLORATION_DEC_STEPS = 1000000
+    DECAY = 1.0
 
     def __init__(self, env_name):
         self.env = gym.make(env_name)
         self.model = Model()
-        self.es = EvolutionStrategy(self.model.get_weights(), self.get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE)
+        self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.DECAY)
         self.exploration = self.INITIAL_EXPLORATION
-
-
-    def get_predicted_action(self, sequence):
-        prediction = self.model.predict(np.array(sequence))
-        return prediction
 
 
     def load(self, filename='weights.pkl'):
@@ -49,7 +53,7 @@ class Agent:
             weights = None
             try:
                 weights = pickle.load(fp)
-            except:
+            except: # Compatability with python2 i.e. plain-text pickles
                 fp.seek(0)
                 weights = pickle.load(fp, encoding='latin1')
 
@@ -72,7 +76,7 @@ class Agent:
             while not done:
                 if render:
                     self.env.render()
-                action = self.get_predicted_action(sequence)
+                action = self._get_predicted_action(sequence)
                 observation, reward, done, _ = self.env.step(action)
                 total_reward += reward
                 sequence = sequence[1:]
@@ -84,20 +88,26 @@ class Agent:
         self.es.run(iterations, print_step=1)
 
 
-    def get_reward(self, weights):
+    def _get_predicted_action(self, sequence):
+        prediction = self.model.predict(np.array(sequence))
+        return prediction
+
+
+    def _get_reward(self, weights):
         total_reward = 0.0
         self.model.set_weights(weights)
+        DELTA_EXPLORATION = self.INITIAL_EXPLORATION / self.EXPLORATION_DEC_STEPS
 
         for episode in range(self.EPS_AVG):
             observation = self.env.reset()
             sequence = [observation]*self.AGENT_HISTORY_LENGTH
             done = False
             while not done:
-                self.exploration = max(self.FINAL_EXPLORATION, self.exploration - self.INITIAL_EXPLORATION/self.EXPLORATION_DEC_STEPS)
+                self.exploration = max(self.FINAL_EXPLORATION, self.exploration - DELTA_EXPLORATION)
                 if random.random() < self.exploration:
                     action = self.env.action_space.sample()
                 else:
-                    action = self.get_predicted_action(sequence)
+                    action = self._get_predicted_action(sequence)
                 observation, reward, done, _ = self.env.step(action)
                 total_reward += reward
                 sequence = sequence[1:]
@@ -106,10 +116,12 @@ class Agent:
         return total_reward/self.EPS_AVG
 
 
+# General evolution strategy algorithm
+# (this is independent from any gym environment)
 class EvolutionStrategy(object):
 
-    def __init__(self, weights, get_reward_func, population_size=50, sigma=0.1, learning_rate=0.001, decay=1.0):
-        np.random.seed(0)
+    def __init__(self, weights, get_reward_func, population_size=50, sigma=0.1, learning_rate=0.001, decay=1.0, seed=0):
+        np.random.seed(seed)
         self.weights = weights
         self.get_reward = get_reward_func
         self.POPULATION_SIZE = population_size

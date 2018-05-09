@@ -12,6 +12,11 @@ import random
 
 # DEPRACTED: doesn't work for bipedal walker
 
+
+### Iterate the VERSION by 1 everytime you modify the below algorithm
+### VERSION 1 ###
+
+
 # QLearningAgent(
 #     env_name = 'CartPole-v0',
 #     epsilon = 1, 
