@@ -3,6 +3,10 @@ This repository is for the A.I Obstacle Maneuvering team in CMPS 140 (A.I) Sprin
 The goal is to use reinforcement learning to train a physics-based agent to maneuver over terrain and obstacles.
 The repository contains agents designed to run on OpenAI gym environments.
 
+BipedalWalker-v2  |  BipedalWalkerHardcore-v2
+:-------------------------:|:-------------------------:
+![](demos/BipedalWalker-v2.gif)  |  TBD
+
 # Requirements
 
 1. Use python 3.4 in Anaconda environment ([here's simple directions](https://github.com/pybox2d/pybox2d/blob/master/INSTALL.md))

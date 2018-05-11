@@ -10,13 +10,19 @@ import random
 
 # Input/output shapes of Bipedal Walker weights (24 inputs, 4 outputs)
 # with 1 hidden layer of 16 nodes
+# (Linear network)
 class Model(object):
 
     def __init__(self):
-        self.weights = [np.zeros(shape=(24, 16)), np.zeros(shape=(16, 16)), np.zeros(shape=(16, 4))]
+        self.weights = [
+            np.zeros(shape=(24, 16)),
+            np.zeros(shape=(16, 16)),
+            np.zeros(shape=(16, 4)),
+        ]
 
     def predict(self, inp):
         out = np.expand_dims(inp.flatten(), 0)
+        # Normalize vector
         out = out / np.linalg.norm(out)
         for layer in self.weights:
             out = np.dot(out, layer)
@@ -31,24 +37,25 @@ class Model(object):
 
 class Agent:
 
-    AGENT_HISTORY_LENGTH = 1
-    POPULATION_SIZE = 20
-    EPS_AVG = 1
-    SIGMA = 0.1
+    AGENT_HISTORY_LENGTH = 1 # Number of directly previous observations to use in our model predictions
+    POPULATION_SIZE = 20 # Number of episodes to run simultaneously. We then use the best rewarded episodes to update our weights
+    EPISODE_AGENTS = 1 # Number of agents to run per episode, we use the average reward
+    SIGMA = 0.1 # Amount of mutation to perform on weights
     LEARNING_RATE = 0.01
-    INITIAL_EXPLORATION = 1.0
-    FINAL_EXPLORATION = 0.0
-    EXPLORATION_DEC_STEPS = 1000000
-    DECAY = 1.0
+    LEARNING_RATE_DECAY = 1.0 # Gradually lower learning rate if < 1.0
+    # self.exploration: as the simulation progresses, we progressively reduce the amount of random actions, using our model to predict actions instead
+    INITIAL_EXPLORATION = 1.0 # Max exploration
+    FINAL_EXPLORATION = 0.0 # Min exploration
+    EXPLORATION_STEPS = 1000000 # Number of iterations before reaching FINAL_EXPLORATION
 
     def __init__(self, env_name):
         self.env = gym.make(env_name)
         self.model = Model()
-        self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.DECAY)
+        self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.LEARNING_RATE_DECAY)
         self.exploration = self.INITIAL_EXPLORATION
 
 
-    def load(self, filename='weights.pkl'):
+    def load(self, filename):
         with open(filename,'rb') as fp:
             weights = None
             try:
@@ -61,7 +68,7 @@ class Agent:
         self.es.weights = self.model.get_weights()
 
 
-    def save(self, filename='weights.pkl'):
+    def save(self, filename='weights/weights.pkl'):
         with open(filename, 'wb') as fp:
             pickle.dump(self.es.get_weights(), fp)
 
@@ -93,12 +100,13 @@ class Agent:
         return prediction
 
 
+    # Here we actually runs the simulation
     def _get_reward(self, weights):
         total_reward = 0.0
         self.model.set_weights(weights)
-        DELTA_EXPLORATION = self.INITIAL_EXPLORATION / self.EXPLORATION_DEC_STEPS
+        EXPLORATION_DECAY = self.INITIAL_EXPLORATION / self.EPISODE_AGENTS
 
-        for episode in range(self.EPS_AVG):
+        for episode in range(self.EPISODES):
             observation = self.env.reset()
             sequence = [observation]*self.AGENT_HISTORY_LENGTH
             done = False
@@ -113,11 +121,12 @@ class Agent:
                 sequence = sequence[1:]
                 sequence.append(observation)
 
-        return total_reward/self.EPS_AVG
+        return total_reward / self.EPISODE_AGENTS
 
 
 # General evolution strategy algorithm
 # (this is independent from any gym environment)
+# Credits go to https://github.com/alirezamika/evostra
 class EvolutionStrategy(object):
 
     def __init__(self, weights, get_reward_func, population_size=50, sigma=0.1, learning_rate=0.001, decay=1.0, seed=0):
@@ -129,12 +138,12 @@ class EvolutionStrategy(object):
         self.DECAY = decay
         self.learning_rate = learning_rate
 
-    def _get_weights_try(self, w, p):
-        weights_try = []
-        for index, i in enumerate(p):
-            jittered = self.SIGMA*i
-            weights_try.append(w[index] + jittered)
-        return weights_try
+    def _get_mutated_weights(self, current_weights, sample):
+        weights = []
+        for index, i in enumerate(sample):
+            jittered = self.SIGMA * i
+            weights.append(current_weights[index] + jittered)
+        return weights
 
 
     def get_weights(self):
@@ -153,14 +162,14 @@ class EvolutionStrategy(object):
                 population.append(x)
 
             for i in range(self.POPULATION_SIZE):
-                weights_try = self._get_weights_try(self.weights, population[i])
-                rewards[i] = self.get_reward(weights_try)
+                mutated_weights = self._get_mutated_weights(self.weights, population[i])
+                rewards[i] = self.get_reward(mutated_weights)
 
             rewards = (rewards - np.mean(rewards)) / np.std(rewards)
 
             for index, w in enumerate(self.weights):
                 A = np.array([p[index] for p in population])
-                self.weights[index] = w + self.learning_rate/(self.POPULATION_SIZE*self.SIGMA) * np.dot(A.T, rewards).T
+                self.weights[index] = w + self.learning_rate / (self.POPULATION_SIZE * self.SIGMA) * np.dot(A.T, rewards).T
 
             self.learning_rate *= self.DECAY
 
