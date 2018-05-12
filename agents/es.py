@@ -4,10 +4,6 @@ import _pickle as pickle
 import random
 
 
-### Iterate the VERSION by 1 everytime you modify the below algorithm
-### VERSION 1 ###
-
-
 # Input/output shapes of Bipedal Walker weights (24 inputs, 4 outputs)
 # with 1 hidden layer of 16 nodes
 # (Linear network)
@@ -37,6 +33,10 @@ class Model(object):
 
 class Agent:
 
+    ### Iterate the VERSION by 1 everytime you modify the algorithm
+    VERSION = 2
+
+
     AGENT_HISTORY_LENGTH = 1 # Number of directly previous observations to use in our model predictions
     POPULATION_SIZE = 20 # Number of episodes to run simultaneously. We then use the best rewarded episodes to update our weights
     EPISODE_AGENTS = 1 # Number of agents to run per episode, we use the average reward
@@ -54,7 +54,6 @@ class Agent:
         self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.LEARNING_RATE_DECAY)
         self.exploration = self.INITIAL_EXPLORATION
 
-
     def load(self, filename):
         with open(filename,'rb') as fp:
             weights = None
@@ -68,7 +67,7 @@ class Agent:
         self.es.weights = self.model.get_weights()
 
 
-    def save(self, filename='weights/weights.pkl'):
+    def save(self, filename):
         with open(filename, 'wb') as fp:
             pickle.dump(self.es.get_weights(), fp)
 
@@ -104,14 +103,14 @@ class Agent:
     def _get_reward(self, weights):
         total_reward = 0.0
         self.model.set_weights(weights)
-        EXPLORATION_DECAY = self.INITIAL_EXPLORATION / self.EPISODE_AGENTS
+        EXPLORATION_DECAY = self.INITIAL_EXPLORATION / self.EXPLORATION_STEPS
 
-        for episode in range(self.EPISODES):
+        for episode in range(self.EPISODE_AGENTS):
             observation = self.env.reset()
             sequence = [observation]*self.AGENT_HISTORY_LENGTH
             done = False
             while not done:
-                self.exploration = max(self.FINAL_EXPLORATION, self.exploration - DELTA_EXPLORATION)
+                self.exploration = max(self.FINAL_EXPLORATION, self.exploration - EXPLORATION_DECAY)
                 if random.random() < self.exploration:
                     action = self.env.action_space.sample()
                 else:

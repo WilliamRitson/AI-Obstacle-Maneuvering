@@ -10,22 +10,24 @@ import sys
 ENV_NAME = 'BipedalWalker-v2'
 
 
-def main(agent, iterations, load=None, save=None):
+def main(agent, iterations, play=False, filename=None):
     start_time = time.time()
 
     Agent = getattr(importlib.import_module('agents.%s' % agent), 'Agent')
 
+    if not filename:
+        filename = '{}-v{}_{}.pkl'.format(agent, Agent.VERSION, ENV_NAME)
+
     agent = Agent(ENV_NAME)
-    if load:
-        agent.load('weights/' + load)
-    if save:
+    if play:
+        agent.load('weights/' + filename)
+        agent.play(iterations)
+    else:
         def on_exit():
-            agent.save('weights/' + save)
+            agent.save('weights/' + filename)
             print('Training finished in {} seconds'.format(time.time() - start_time))
         atexit.register(on_exit)
         agent.train(iterations)
-    else:
-        agent.play(iterations)
 
 
 if __name__ == '__main__':
@@ -37,9 +39,8 @@ if __name__ == '__main__':
     else:
         ### Uncomment one of these lines at a time: ###
 
-        main('es', 1, load='es_1000.pkl')
-        # main('es', 1, load='es_1000_hardcore_scratch.pkl')
-        # main('es', 1000, save='es_1000_hardcore_scratch.pkl')
-        # main('qlearning', 10, load='qlearning_500.h5')
-        # main('qlearning', 500, save='qlearning_500.h5')
+        main('es', 1, play=True)
+        # main('es', 1000)
+        # main('qlearning', 10, play=True)
+        # main('qlearning', 500)
 
