@@ -34,7 +34,7 @@ class Model(object):
 class Agent:
 
     ### Iterate the VERSION by 1 everytime you modify the algorithm
-    VERSION = 2
+    VERSION = 1
 
 
     AGENT_HISTORY_LENGTH = 1 # Number of directly previous observations to use in our model predictions
