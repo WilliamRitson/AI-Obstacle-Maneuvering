@@ -6,6 +6,7 @@ from multiprocessing.pool import ThreadPool
 
 import numpy as np
 import gym
+
 gym.logger.setLevel(gym.logger.ERROR)
 
 # Input/output shapes of Bipedal Walker weights (24 inputs, 4 outputs)
@@ -54,7 +55,7 @@ class Agent:
 
     def __init__(self, env_name):
         self.model = Model()
-        self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.LEARNING_RATE_DECAY)
+        self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self._setup_envs, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.LEARNING_RATE_DECAY)
         self.exploration = self.INITIAL_EXPLORATION
         self.env_name = env_name
 
@@ -98,9 +99,14 @@ class Agent:
     def train(self, iterations):
         self.es.run(iterations, print_step=1)
 
+    def _setup_envs(self):
+        return [ (
+            Model(), # model must be first element in tuple
+            gym.make(self.env_name),
+        ) for i in range(self.POPULATION_SIZE) ]
 
     # Here we actually runs the simulation
-    def _get_reward(self, env, model):
+    def _get_reward(self, model, env):
         total_reward = 0.0
 
         EXPLORATION_DECAY = self.INITIAL_EXPLORATION / self.EXPLORATION_STEPS
@@ -131,10 +137,11 @@ class Agent:
 # Credits go to https://github.com/alirezamika/evostra
 class EvolutionStrategy(object):
 
-    def __init__(self, weights, get_reward_func, population_size=50, sigma=0.1, learning_rate=0.001, decay=1.0, seed=0):
+    def __init__(self, weights, get_reward_func, setup_envs_func, population_size=50, sigma=0.1, learning_rate=0.001, decay=1.0, seed=0):
         np.random.seed(seed)
         self.weights = weights
         self.get_reward = get_reward_func
+        self.setup_envs = setup_envs_func
         self.POPULATION_SIZE = population_size
         self.SIGMA = sigma
         self.DECAY = decay
@@ -155,14 +162,7 @@ class EvolutionStrategy(object):
 
     def run(self, iterations, print_step=10):
 
-        env = gym.make('BipedalWalker-v2')
-        model = Model()
-
-        vals = [ (
-            gym.make('BipedalWalker-v2'),
-            Model(),
-        ) for i in range(self.POPULATION_SIZE) ]
-        from sys import getsizeof
+        vals = self.setup_envs()
 
         for iteration in range(iterations):
 
@@ -173,14 +173,16 @@ class EvolutionStrategy(object):
                     x.append(np.random.randn(*w.shape))
                 population.append(x)
 
-                vals[i][1].set_weights(self._get_mutated_weights(deepcopy(self.weights), x))
+                vals[i][0].set_weights(self._get_mutated_weights(deepcopy(self.weights), x))
 
-            rewards = self.pool.starmap(self.get_reward, vals, 2)
-
+            # OLD SYNCRONOUS STRATEGY
             # rewards = np.zeros(self.POPULATION_SIZE)
             # for i in range(self.POPULATION_SIZE):
             #     mutated_weights = self._get_mutated_weights(self.weights, population[i])
             #     rewards[i] = self.get_reward(mutated_weights)
+
+            # NEW MULTITHREADED STRATEGY
+            rewards = self.pool.starmap(self.get_reward, vals, 2) # chunk size of 2 seems to work ok
 
             rewards = (rewards - np.mean(rewards)) / np.std(rewards)
 
@@ -191,5 +193,6 @@ class EvolutionStrategy(object):
             self.learning_rate *= self.DECAY
 
             if (iteration+1) % print_step == 0:
+                model = vals[0][0]
                 model.set_weights(self.weights)
-                print('iter %d. reward: %f' % (iteration+1, self.get_reward(env, model)))
+                print('iter %d. reward: %f' % (iteration+1, self.get_reward(*vals[0])))
