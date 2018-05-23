@@ -1,8 +1,12 @@
-import numpy as np
-import gym
 import _pickle as pickle
 import random
+from copy import deepcopy
+from multiprocessing import cpu_count
+from multiprocessing.pool import ThreadPool
 
+import numpy as np
+import gym
+gym.logger.setLevel(gym.logger.ERROR)
 
 # Input/output shapes of Bipedal Walker weights (24 inputs, 4 outputs)
 # with 1 hidden layer of 16 nodes
@@ -34,11 +38,11 @@ class Model(object):
 class Agent:
 
     ### Iterate the VERSION by 1 everytime you modify the algorithm
-    VERSION = 1
+    VERSION = 2
 
 
     AGENT_HISTORY_LENGTH = 1 # Number of directly previous observations to use in our model predictions
-    POPULATION_SIZE = 20 # Number of episodes to run simultaneously. We then use the best rewarded episodes to update our weights
+    POPULATION_SIZE = 50 # Number of episodes to run simultaneously. We then use the best rewarded episodes to update our weights
     EPISODE_AGENTS = 1 # Number of agents to run per episode, we use the average reward
     SIGMA = 0.1 # Amount of mutation to perform on weights
     LEARNING_RATE = 0.01
@@ -49,10 +53,10 @@ class Agent:
     EXPLORATION_STEPS = 1000000 # Number of iterations before reaching FINAL_EXPLORATION
 
     def __init__(self, env_name):
-        self.env = gym.make(env_name)
         self.model = Model()
         self.es = EvolutionStrategy(self.model.get_weights(), self._get_reward, self.POPULATION_SIZE, self.SIGMA, self.LEARNING_RATE, self.LEARNING_RATE_DECAY)
         self.exploration = self.INITIAL_EXPLORATION
+        self.env_name = env_name
 
     def load(self, filename):
         with open(filename,'rb') as fp:
@@ -73,17 +77,18 @@ class Agent:
 
 
     def play(self, episodes, render=True):
+        env = gym.make(self.env_name)
         self.model.set_weights(self.es.weights)
         for episode in range(episodes):
             total_reward = 0
-            observation = self.env.reset()
+            observation = env.reset()
             sequence = [observation]*self.AGENT_HISTORY_LENGTH
             done = False
             while not done:
                 if render:
-                    self.env.render()
-                action = self._get_predicted_action(sequence)
-                observation, reward, done, _ = self.env.step(action)
+                    env.render()
+                action = self.model.predict(np.array(sequence))
+                observation, reward, done, _ = env.step(action)
                 total_reward += reward
                 sequence = sequence[1:]
                 sequence.append(observation)
@@ -94,31 +99,29 @@ class Agent:
         self.es.run(iterations, print_step=1)
 
 
-    def _get_predicted_action(self, sequence):
-        prediction = self.model.predict(np.array(sequence))
-        return prediction
-
-
     # Here we actually runs the simulation
-    def _get_reward(self, weights):
+    def _get_reward(self, env, model):
         total_reward = 0.0
-        self.model.set_weights(weights)
+
         EXPLORATION_DECAY = self.INITIAL_EXPLORATION / self.EXPLORATION_STEPS
+        exploration = self.exploration
 
         for episode in range(self.EPISODE_AGENTS):
-            observation = self.env.reset()
+            observation = env.reset()
             sequence = [observation]*self.AGENT_HISTORY_LENGTH
             done = False
             while not done:
-                self.exploration = max(self.FINAL_EXPLORATION, self.exploration - EXPLORATION_DECAY)
-                if random.random() < self.exploration:
-                    action = self.env.action_space.sample()
+                exploration = max(self.FINAL_EXPLORATION, exploration - EXPLORATION_DECAY)
+                if random.random() < exploration:
+                    action = env.action_space.sample()
                 else:
-                    action = self._get_predicted_action(sequence)
-                observation, reward, done, _ = self.env.step(action)
+                    action = model.predict(np.array(sequence))
+                observation, reward, done, _ = env.step(action)
                 total_reward += reward
                 sequence = sequence[1:]
                 sequence.append(observation)
+
+        self.exploration = exploration
 
         return total_reward / self.EPISODE_AGENTS
 
@@ -136,6 +139,7 @@ class EvolutionStrategy(object):
         self.SIGMA = sigma
         self.DECAY = decay
         self.learning_rate = learning_rate
+        self.pool = ThreadPool(cpu_count())
 
     def _get_mutated_weights(self, current_weights, sample):
         weights = []
@@ -150,19 +154,33 @@ class EvolutionStrategy(object):
 
 
     def run(self, iterations, print_step=10):
+
+        env = gym.make('BipedalWalker-v2')
+        model = Model()
+
+        vals = [ (
+            gym.make('BipedalWalker-v2'),
+            Model(),
+        ) for i in range(self.POPULATION_SIZE) ]
+        from sys import getsizeof
+
         for iteration in range(iterations):
 
             population = []
-            rewards = np.zeros(self.POPULATION_SIZE)
             for i in range(self.POPULATION_SIZE):
                 x = []
                 for w in self.weights:                 
                     x.append(np.random.randn(*w.shape))
                 population.append(x)
 
-            for i in range(self.POPULATION_SIZE):
-                mutated_weights = self._get_mutated_weights(self.weights, population[i])
-                rewards[i] = self.get_reward(mutated_weights)
+                vals[i][1].set_weights(self._get_mutated_weights(deepcopy(self.weights), x))
+
+            rewards = self.pool.starmap(self.get_reward, vals, 2)
+
+            # rewards = np.zeros(self.POPULATION_SIZE)
+            # for i in range(self.POPULATION_SIZE):
+            #     mutated_weights = self._get_mutated_weights(self.weights, population[i])
+            #     rewards[i] = self.get_reward(mutated_weights)
 
             rewards = (rewards - np.mean(rewards)) / np.std(rewards)
 
@@ -173,4 +191,5 @@ class EvolutionStrategy(object):
             self.learning_rate *= self.DECAY
 
             if (iteration+1) % print_step == 0:
-                print('iter %d. reward: %f' % (iteration+1, self.get_reward(self.weights)))
+                model.set_weights(self.weights)
+                print('iter %d. reward: %f' % (iteration+1, self.get_reward(env, model)))

@@ -8,9 +8,8 @@ BipedalWalker-v2  |  BipedalWalkerHardcore-v2
 
 ## Requirements
 
-1. Use python 3.4 in Anaconda environment ([here's simple directions](https://github.com/pybox2d/pybox2d/blob/master/INSTALL.md))
-2. `conda install -c https://conda.anaconda.org/kne pybox2d`
-3. `pip install tensorflow keras gym`
+1. Atleast Python 3.4
+2. Run `pip install -r requirements.txt`
 
 Some gym environments may require additional packages.
 

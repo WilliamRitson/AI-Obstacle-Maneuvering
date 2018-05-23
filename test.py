@@ -39,8 +39,8 @@ if __name__ == '__main__':
     else:
         ### Uncomment one of these lines at a time: ###
 
-        main('es', 1, play=True)
-        # main('es', 1000)
+        # main('es', 1, play=True)
+        main('es', 1000)
         # main('qlearning', 10, play=True)
         # main('qlearning', 500)
 
