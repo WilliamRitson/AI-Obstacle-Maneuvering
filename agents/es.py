@@ -39,11 +39,11 @@ class Model(object):
 class Agent:
 
     ### Iterate the VERSION by 1 everytime you modify the algorithm
-    VERSION = 2
+    VERSION = 3
 
 
     AGENT_HISTORY_LENGTH = 1 # Number of directly previous observations to use in our model predictions
-    POPULATION_SIZE = 50 # Number of episodes to run simultaneously. We then use the best rewarded episodes to update our weights
+    POPULATION_SIZE = 30 # Number of episodes to run simultaneously. We then use the best rewarded episodes to update our weights
     EPISODE_AGENTS = 1 # Number of agents to run per episode, we use the average reward
     SIGMA = 0.1 # Amount of mutation to perform on weights
     LEARNING_RATE = 0.01
@@ -109,8 +109,8 @@ class Agent:
     def _get_reward(self, model, env):
         total_reward = 0.0
 
-        EXPLORATION_DECAY = self.INITIAL_EXPLORATION / self.EXPLORATION_STEPS
-        exploration = self.exploration
+        EXPLORATION_DECAY = (self.INITIAL_EXPLORATION - self.FINAL_EXPLORATION) / self.EXPLORATION_STEPS
+        exploration = i_exploration = self.exploration
 
         for episode in range(self.EPISODE_AGENTS):
             observation = env.reset()
@@ -118,7 +118,7 @@ class Agent:
             done = False
             while not done:
                 exploration = max(self.FINAL_EXPLORATION, exploration - EXPLORATION_DECAY)
-                if random.random() < exploration:
+                if random.random() < self.exploration:
                     action = env.action_space.sample()
                 else:
                     action = model.predict(np.array(sequence))
@@ -127,7 +127,7 @@ class Agent:
                 sequence = sequence[1:]
                 sequence.append(observation)
 
-        self.exploration = exploration
+        self.exploration -= i_exploration - exploration
 
         return total_reward / self.EPISODE_AGENTS
 
@@ -168,26 +168,20 @@ class EvolutionStrategy(object):
 
             population = []
             for i in range(self.POPULATION_SIZE):
-                x = []
-                for w in self.weights:                 
-                    x.append(np.random.randn(*w.shape))
+                x = [ np.random.randn(*w.shape) for w in self.weights ]
                 population.append(x)
 
+                # Assign mutated weights to each environment
                 vals[i][0].set_weights(self._get_mutated_weights(deepcopy(self.weights), x))
 
-            # OLD SYNCRONOUS STRATEGY
-            # rewards = np.zeros(self.POPULATION_SIZE)
-            # for i in range(self.POPULATION_SIZE):
-            #     mutated_weights = self._get_mutated_weights(self.weights, population[i])
-            #     rewards[i] = self.get_reward(mutated_weights)
-
-            # NEW MULTITHREADED STRATEGY
+            # Multithreaded strategy
             rewards = self.pool.starmap(self.get_reward, vals, 2) # chunk size of 2 seems to work ok
 
             rewards = (rewards - np.mean(rewards)) / np.std(rewards)
 
             for index, w in enumerate(self.weights):
                 A = np.array([p[index] for p in population])
+                # Calculate new weights
                 self.weights[index] = w + self.learning_rate / (self.POPULATION_SIZE * self.SIGMA) * np.dot(A.T, rewards).T
 
             self.learning_rate *= self.DECAY
