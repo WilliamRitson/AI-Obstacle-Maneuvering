@@ -9,18 +9,18 @@ BipedalWalker-v2  |  BipedalWalkerHardcore-v2
 ## Requirements
 
 ### Unix
-1. Python 3.4 (and up) in Anaconda environment
+1. Python 3.4^
 2. `pip install -r requirements.txt`
-
-### Windows
-1. Use python 3.4 in Anaconda environment ([here's simple directions](https://github.com/pybox2d/pybox2d/blob/master/INSTALL.md))
-2. `conda install -c https://conda.anaconda.org/kne pybox2d`
-3. `pip install -r requirements_windows.txt`
+3. Install `swig`
+  - Mac: `brew install swig`
+  - Linux: `sudo apt-get install swig`
+  - Windows: http://www.swig.org/download.html
+4. `pip install gym[Box2d]==0.10.4` (This package may have other requirements, so read the installation errors closely)
 
 Some gym environments may require additional packages.
 
 ## Running
-You can run the example enviroment with `python test.py`. The agents/environments can be modified in this file.
+You can run the example environment with `python test.py`. The agents/environments can be modified in this file.
 
 # Bipedal Walker Environment
 
