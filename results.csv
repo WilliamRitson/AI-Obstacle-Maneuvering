@@ -1,3 +1,7 @@
-agent,environment,iterations,reward
-es-v1,BipedalWalker-v2,1000,240
-es-v1,BipedalWalkerHardcore-v2,1000,-90
+Environment,Avg Reward,Iterations,Modifications
+Normal,160,500,[Original]
+Normal,240,1000,Increase iterations
+Obstacles,-20,1000,Increase population size (20->30)
+Obstacles,-20,2000,Increase iterations; Reduce exploration decay
+Obstacles,-18,2000,Increase Sigma (Rate of mutation) (0.1 -> 0.2)
+Obstacles,-95,2000,Add another hidden layer of 16 nodes

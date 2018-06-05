@@ -4,20 +4,19 @@ The goal of this project is to use reinforcement learning to train a physics-bas
 
 BipedalWalker-v2  |  BipedalWalkerHardcore-v2
 :-------------------------:|:-------------------------:
-![](demos/BipedalWalker-v2.gif)  |  TBD
+![](demos/BipedalWalker-v2.gif)  |  ![](demos/BipedalWalkerHardcore-v2.gif)
 
 ## Requirements
 
-### Unix
-1. Python 3.4^
+1. Python ^3.4
 2. `pip install -r requirements.txt`
 3. Install `swig`
   - Mac: `brew install swig`
   - Linux: `sudo apt-get install swig`
   - Windows: http://www.swig.org/download.html
-4. `pip install gym[Box2d]==0.10.4` (This package may have other requirements, so read the installation errors closely)
+4. `pip install gym[Box2d]==0.10.4`
 
-Some gym environments may require additional packages.
+Swig and some gym environments may have other requirements, so read the installation and runtime errors closely.
 
 ## Running
 You can run the example environment with `python test.py`. The agents/environments can be modified in this file.
