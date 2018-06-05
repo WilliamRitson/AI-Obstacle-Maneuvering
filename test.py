@@ -27,7 +27,7 @@ def main(agent, iterations, play=False, filename=None, envname=ENV_NAME):
             agent.save('weights/' + filename)
             print('Training finished in {} seconds'.format(time.time() - start_time))
         atexit.register(on_exit)
-        # agent.load('weights/' + filename)
+        agent.load('weights/' + filename)
         agent.train(iterations)
 
 
